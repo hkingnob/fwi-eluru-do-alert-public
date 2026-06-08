@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Eluru DO Risk — Daily Weather-Based Alert</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --panel: #ffffff;
+    --border: #e3e3df;
+    --ink: #1f2024;
+    --muted: #5e6168;
+    --accent: #2f5d75;
+    --accent-soft: #e7f0f5;
+    --good: #2f7a4f;
+    --good-bg: #e6f3eb;
+    --warn: #b8761d;
+    --warn-bg: #fbf1de;
+    --bad: #b13b2c;
+    --bad-bg: #fbe6e1;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--ink); }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { margin-bottom: 24px; }
+  header .eyebrow {
+    font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+  }
+  header h1 { margin: 4px 0 6px; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 15px; }
+  header .meta {
+    margin-top: 12px; display: flex; flex-wrap: wrap; gap: 14px;
+    font-size: 13px; color: var(--muted);
+  }
+  header .meta span { white-space: nowrap; }
+  button {
+    font: inherit; cursor: pointer;
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-size: 13px;
+  }
+  button:hover { background: var(--accent-soft); }
+
+  /* ---------- Alert banner ---------- */
+  .banner {
+    margin: 16px 0 28px;
+    padding: 22px 24px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+  .banner.normal { background: var(--good-bg); border-color: #c8e2d4; }
+  .banner.elevated { background: var(--warn-bg); border-color: #ecd6a6; }
+  .banner.high { background: var(--bad-bg); border-color: #ecbeb3; }
+  .banner .label {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--muted);
+  }
+  .banner .level {
+    font-size: 32px; font-weight: 700; letter-spacing: -0.01em; margin: 4px 0 6px;
+  }
+  .banner.normal .level { color: var(--good); }
+  .banner.elevated .level { color: var(--warn); }
+  .banner.high .level { color: var(--bad); }
+  .banner .what-to-do { font-size: 16px; color: var(--ink); margin-top: 10px; }
+  .banner .meta-row {
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(0,0,0,0.08);
+    display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: var(--muted);
+  }
+  .banner .meta-row b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- Section ---------- */
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    margin: 16px 0;
+    box-shadow: var(--shadow);
+  }
+  section h2 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+  section h3 {
+    margin: 18px 0 6px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  section p { margin: 8px 0; }
+  section ul { padding-left: 20px; margin: 8px 0; }
+  section li { margin: 4px 0; }
+
+  /* ---------- Forecast table ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 6px; }
+  th, td {
+    text-align: left; padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: #fafaf8; font-weight: 600; font-size: 13px; color: var(--muted); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Numbers row ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .stat {
+    background: #fafaf8;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .stat .label { font-size: 12px; color: var(--muted); }
+  .stat .value { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .stat .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- Details ---------- */
+  details {
+    margin: 10px 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+  }
+  details > summary {
+    cursor: pointer; padding: 10px 0;
+    font-weight: 600; font-size: 14px;
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸ "; color: var(--muted); }
+  details[open] > summary::before { content: "▾ "; }
+  details > div { padding: 4px 0 12px; }
+
+  .err {
+    background: #fff1ee; border: 1px solid #f3c4bb; color: #7a1d10;
+    padding: 12px 14px; border-radius: 8px; font-size: 14px;
+  }
+  .pill {
+    display: inline-block; font-size: 11px; padding: 2px 8px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    font-weight: 600; letter-spacing: 0.02em; vertical-align: middle;
+  }
+  .pill.green { background: var(--good-bg); color: var(--good); }
+  .pill.amber { background: var(--warn-bg); color: var(--warn); }
+  .pill.red { background: var(--bad-bg); color: var(--bad); }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    background: #f1f1ed;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .footnote { color: var(--muted); font-size: 13px; margin-top: 14px; }
+  a { color: var(--accent); }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    display: flex; gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin: 8px 0 20px;
+  }
+  .tab-btn {
+    background: transparent; border: none;
+    padding: 10px 16px; font-size: 14px; font-weight: 600;
+    color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { background: var(--accent-soft); color: var(--accent); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ---------- Historical lookup ---------- */
+  .lookup-form {
+    display: flex; flex-wrap: wrap; align-items: end;
+    gap: 14px;
+    background: #fafaf8;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 14px 0;
+  }
+  .lookup-form label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .lookup-form input[type="date"] {
+    font: inherit; padding: 6px 10px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: white;
+  }
+  .lookup-form .source-toggle { display: flex; gap: 14px; align-items: center; }
+  .lookup-form .source-toggle label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 0; cursor: pointer; }
+  .lookup-form button.primary {
+    background: var(--accent); color: white; border: none;
+    padding: 8px 18px; font-size: 14px; font-weight: 600;
+    border-radius: 6px; cursor: pointer;
+  }
+  .lookup-form button.primary:hover { background: #244958; }
+  .verdict {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .verdict.match { background: var(--good-bg); border-color: #c8e2d4; }
+  .verdict.miss  { background: var(--warn-bg); border-color: #ecd6a6; }
+  .verdict.none  { background: #f5f5f1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Fish Welfare Initiative · ARA Eluru</div>
+  <h1>Daily Dissolved-Oxygen Risk Alert</h1>
+  <div class="sub">A simple weather-based forecast that flags days when low DO is more likely across Eluru ponds.</div>
+  <div class="meta">
+    <span>Location: Eluru centroid (16.64°N, 81.12°E)</span>
+    <span id="lastUpdated">Loading…</span>
+    <span><button id="refreshBtn">Refresh</button></span>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="tab-tomorrow">Tomorrow's alert</button>
+  <button class="tab-btn" data-tab="tab-history">Historical lookup</button>
+  <button class="tab-btn" data-tab="tab-trial">Trial design</button>
+</div>
+
+<!-- Tab: Tomorrow ============================================ -->
+<div id="tab-tomorrow" class="tab-panel active">
+  <!-- Live alert -->
+  <div id="banner" class="banner">
+    <div class="label">Tomorrow's status</div>
+    <div class="level" id="bannerLevel">Loading…</div>
+    <div class="what-to-do" id="bannerAction">Fetching weather forecast and computing the model…</div>
+    <div class="meta-row" id="bannerMeta"></div>
+  </div>
+  <div id="errorBox"></div>
+</div>
+
+<!-- Tab: Historical lookup ==================================== -->
+<div id="tab-history" class="tab-panel">
+  <section style="margin-top: 0;">
+    <h2>Historical lookup — verify the model on past days</h2>
+    <p>Pick any date from <b>2024-01-01</b> onwards. The page will compute what the model would have said for that day, and (if the date is in our records) compare it to the actual visits and OOR results. Useful for spot-checking whether the model's "High risk" calls actually corresponded to bad days.</p>
+
+    <div class="lookup-form">
+      <div>
+        <label for="lookupDate">Date</label>
+        <input type="date" id="lookupDate" min="2024-01-02" />
+      </div>
+      <div>
+        <label>Weather data source</label>
+        <div class="source-toggle">
+          <label><input type="radio" name="srcMode" value="forecast" checked /> Day-ahead forecast</label>
+          <label><input type="radio" name="srcMode" value="reanalysis" /> Reanalysis (hindsight)</label>
+        </div>
+      </div>
+      <div>
+        <button class="primary" id="lookupBtn">Look up</button>
+      </div>
+    </div>
+
+    <details>
+      <summary>What's the difference between these two sources?</summary>
+      <div>
+        <p><b>Day-ahead forecast</b> = what Open-Meteo's forecast actually <i>said</i> for that day, the day before. This matches what staff would have seen in real deployment. Use this to evaluate "would the model have helped us in real life?"</p>
+        <p><b>Reanalysis</b> = the best retrospective estimate of what actually happened that day, computed later using all available data. Skye trained the model on this. Use this to see "what would the model say with perfect-information weather?" — i.e., the upper bound on accuracy. Real deployment will be slightly worse because forecasts are noisier than reanalysis.</p>
+        <p>Comparing the two for the same date shows how much the model degrades from "ideal information" to "what staff would actually have seen."</p>
+        <p style="margin-top: 10px; padding: 10px 12px; background: #fbf1de; border: 1px solid #ecd6a6; border-radius: 6px; font-size: 13px;"><b>Practical caveat:</b> For dates more than a few days in the past, Open-Meteo's day-ahead forecast and reanalysis converge to nearly identical values — Open-Meteo recalibrates historical forecasts against actual observations over time. So in practice, picking either source for older dates will usually give the same answer. The difference may only be visible for very recent dates (last 24–48 hours). The good news: this means live deployment performance shouldn't degrade meaningfully from what we measured in testing. The honest caveat: it also means we can't fully separate "what the forecast said" from "what actually happened" using public data — so the historical lookup is a partial validation of the model, not a fully independent one.</p>
+      </div>
+    </details>
+
+    <div id="lookupResult"></div>
+    <div id="lookupErrorBox"></div>
+  </section>
+</div>
+
+<!-- Tab: Trial design ========================================= -->
+<div id="tab-trial" class="tab-panel">
+  <section style="margin-top: 0;">
+    <h2>Proposed trial design</h2>
+    <p>Before this model changes how field staff visit ponds, we want to <b>shadow-test it for 12 weeks</b> with no operational changes — just daily logging. This page explains how the trial works, why 12 weeks (rather than 4–6), what we'll decide at the end, and when we'd stop early.</p>
+
+    <h3>Why a shadow trial</h3>
+    <p>The model has been validated on historical data, but historical validation has limits. Performance can drift season-to-season; the data we have so far is mostly dry-season; and real deployment uses day-ahead forecasts, not reanalysis. Before changing field operations, we want to verify the signal still shows up on fresh, real-world conditions.</p>
+    <p>A shadow trial does exactly that with one important property: <b>nothing about field operations changes during the trial</b>. Staff visit ponds on their normal schedule, in normal order, at normal cadence. They just record the model's alert tier alongside the day's results. At the end, we compare OOR rates on Alert vs Normal days. If the signal holds, we move to a small operational pilot. If it doesn't, we stop — and we've spared Programs the cost of deploying a noisy tool.</p>
+
+    <h3>The protocol — what staff do each day</h3>
+    <ol>
+      <li>Each morning, open this page. Note the alert tier: <b>Normal</b>, or <b>Alert</b> (Elevated and High both count as Alert).</li>
+      <li>Visit ponds on the normal schedule. <b>No changes</b> to routing, visit count, or order.</li>
+      <li>At end of day, log: date, alert tier, # visits made, # visits that found OOR.</li>
+      <li>Send the weekly log to Haven by Friday.</li>
+    </ol>
+    <p>That's it. The model produces a daily call; the trial collects ground truth alongside it.</p>
+
+    <h3>How long, and why 12 weeks</h3>
+    <p>The earlier "4–6 week" suggestion in our planning was too short for the actual signal we're testing. Here's the math:</p>
+    <ul>
+      <li>YTD validation showed Alert OOR ≈ 11.6%, Normal OOR ≈ 6.7% — a <b>1.7× lift</b>.</li>
+      <li>Detecting that 1.7× difference at conventional 80% statistical power requires roughly <b>270 visits per group</b>.</li>
+      <li>At ~6.5 visits/day with ~50% of days as Alert, that's ~3.25 visits/day per group, or about <b>12 weeks</b> to accumulate the needed sample.</li>
+    </ul>
+    <p>Concretely:</p>
+    <table>
+      <thead><tr><th>Trial length</th><th class="num">Total visits</th><th class="num">~Visits per group</th><th>Min lift detectable at 80% power</th></tr></thead>
+      <tbody>
+        <tr><td>4 weeks</td><td class="num">~180</td><td class="num">~90</td><td>~2.5× (would only catch a far stronger signal than expected)</td></tr>
+        <tr><td>8 weeks</td><td class="num">~360</td><td class="num">~180</td><td>~2.1×</td></tr>
+        <tr style="background:var(--accent-soft);"><td><b>12 weeks</b></td><td class="num"><b>~540</b></td><td class="num"><b>~270</b></td><td><b>~1.7× — matches the YTD signal</b></td></tr>
+        <tr><td>16 weeks</td><td class="num">~720</td><td class="num">~360</td><td>~1.5×</td></tr>
+        <tr><td>20 weeks</td><td class="num">~900</td><td class="num">~455</td><td>~1.4×</td></tr>
+      </tbody>
+    </table>
+    <p>At 4 weeks, we couldn't statistically distinguish the model from noise unless the true lift were dramatically bigger than YTD suggested. 12 weeks is the natural minimum for the signal we actually have.</p>
+
+    <h3>Why 12 weeks is genuinely the right length, not just an annoyingly long one</h3>
+    <ul>
+      <li><b>The trial costs almost nothing during.</b> Staff log a tier and a visit count alongside their normal day's records. No behavioural change, no operational risk. The only "cost" is delayed deployment if the signal is real.</li>
+      <li><b>12 weeks spans the dry-to-monsoon transition</b>. Today's date is early May; a 12-week trial runs through late July. That's exactly the season we have <i>no</i> validation for, and where the model's weather-driven signal is most likely to behave differently. Useful information regardless of the stat test.</li>
+      <li><b>The YTD signal might not generalize.</b> If the lift on monsoon days is dramatically different (better or worse) from the dry-season pattern, that's a critical finding for whether to deploy at all — not something we want to discover after rolling out.</li>
+    </ul>
+
+    <h3>Interim checkpoints</h3>
+    <p><b>Week 4 — directional sanity check (not a go/no-go).</b> Just look at OOR rates so far. If Alert is at least directionally higher than Normal, continue. If they're tied or flipped, investigate before continuing — something may be off in this season.</p>
+    <p><b>Week 8 — interim review.</b> Confidence intervals will still be wide, but you'll have a real read. If the gap is dramatically larger than expected (≥2.5× lift) and the lower bound of its 90% CI is above 1.0, the trial may have already crossed the bar — consider proceeding to pilot early. If the gap roughly tracks 1.7×, keep going. If it's washed out (&lt;1.2× or flipped), seriously consider stopping early.</p>
+    <p><b>Week 12 — decision point.</b> See criterion below.</p>
+
+    <h3 style="color: var(--accent);">Pre-registered decision criterion (set the bar now, before results come in)</h3>
+    <div style="border: 1px solid var(--border); background: var(--accent-soft); border-radius: 8px; padding: 14px 18px;">
+      <p style="margin-top:0;"><b>Proceed to operational pilot</b> if, at end of week 12:</p>
+      <ol>
+        <li>Alert OOR rate ≥ <b>1.5× Normal OOR rate</b>, AND</li>
+        <li>The lower bound of the 90% confidence interval on the lift is <b>above 1.0×</b> (i.e., the difference is statistically distinguishable from zero).</li>
+      </ol>
+      <p style="margin-bottom:0;"><b>Otherwise: stop.</b> No pilot. Document the result as evidence the approach doesn't generalize, and look at other modelling directions (e.g. Sara's per-pond approach) for the next iteration.</p>
+    </div>
+    <p class="footnote">Pre-registering the criterion now matters because it removes the temptation to retroactively choose a threshold that makes the result look better than it is.</p>
+
+    <h3>When to stop early</h3>
+    <p>Two scenarios where stopping the full 12 weeks makes sense:</p>
+    <ul>
+      <li><b>Stop early because it's clearly working</b> — at week 8, if lift is dramatically larger than 2× and the 90% CI excludes 1.0, we have stat-sig evidence and can move to pilot 4 weeks ahead of schedule.</li>
+      <li><b>Stop early because it's clearly not working</b> — at week 4 or 8, if Alert OOR rate is <i>below</i> Normal rate (model is anti-predictive), or if alerts are firing every day (uninformative), stop and rebuild before continuing to log.</li>
+    </ul>
+
+    <h3>What we'll learn either way</h3>
+    <p>Even if the trial fails, the data is valuable:</p>
+    <ul>
+      <li><b>Confirms or refutes monsoon-season generalization.</b> The trial spans April–July, exactly the season we have no validation for. We'd have a real answer either way.</li>
+      <li><b>Calibrates real forecast quality vs reanalysis.</b> Live deployment uses day-ahead forecasts; the trial measures how the model performs on those.</li>
+      <li><b>Surfaces operational pain points.</b> Whether staff find the morning check usable. Whether the alert frequency feels right. Whether observers manage the daily log without friction.</li>
+    </ul>
+    <p>So 12 weeks of logging, regardless of outcome, gives a real-world evidence base for whatever we do next.</p>
+
+    <h3>Daily logging template</h3>
+    <p>Use this format (copy into a spreadsheet or print and fill by hand):</p>
+    <table>
+      <thead><tr><th>Date</th><th>Tier (Normal/Alert)</th><th class="num">Visits</th><th class="num">OOR found</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td colspan="5" style="color: var(--muted); font-style: italic;">Fill one row per day. Send weekly log to Haven by Friday EOD.</td></tr>
+      </tbody>
+    </table>
+    <p class="footnote">If staff want to record more detail — observer name, village, weather observed, etc. — that's welcome but not required. The four columns above are the minimum.</p>
+
+    <h3>Quick reference</h3>
+    <table>
+      <tbody>
+        <tr><td><b>Trial duration</b></td><td>12 weeks</td></tr>
+        <tr><td><b>What changes for staff</b></td><td>Nothing operationally. They just log the alert tier alongside their normal day.</td></tr>
+        <tr><td><b>Decision criterion</b></td><td>Alert OOR ≥ 1.5× Normal OOR, with 90% CI lower bound above 1.0</td></tr>
+        <tr><td><b>If it passes</b></td><td>Move to a small operational pilot.</td></tr>
+        <tr><td><b>If it fails</b></td><td>Stop. Document. Move on to other approaches.</td></tr>
+        <tr><td><b>Interim check-ins</b></td><td>Week 4 (sanity), Week 8 (interim — possible early decision)</td></tr>
+        <tr><td><b>Send logs to</b></td><td>Haven (haven@fishwelfareinitiative.org), weekly</td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<!-- What this is -->
+<section>
+  <h2>What this is, in plain words</h2>
+  <p>This page predicts <b>how likely it is that low dissolved oxygen will be found at Eluru ponds tomorrow morning</b>, based only on the weather forecast for the region.</p>
+  <p>It does <b>not</b> tell you which specific ponds will be in trouble. It tells you whether <i>tomorrow</i> is the kind of day when low DO is more common across the region — and if so, you may want to put more effort into your visit schedule on that day.</p>
+  <p>Think of it as a daily weather-based heads-up, not a routing tool.</p>
+</section>
+
+<!-- What you should do today -->
+<section>
+  <h2>What to do today</h2>
+  <div id="actionPlan"></div>
+  <h3>General response protocol</h3>
+  <p>Based on YTD validation: the model reliably distinguishes <b>Alert days</b> (Elevated or High) from <b>Normal days</b>, but does <i>not</i> reliably distinguish Elevated from High within the alert tier. So the recommended action is the same for both: treat any non-Normal day as an Alert.</p>
+  <table>
+    <thead><tr><th>Status</th><th>What it means</th><th>Suggested response</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="pill green">Normal</span></td>
+        <td>Tomorrow's weather is in the bottom 80% historically. OOR rate on these days runs ~6.7% (a bit below baseline).</td>
+        <td>Visit on your normal schedule. Optionally trim 1 visit if capacity is tight; redistribute to alert days.</td>
+      </tr>
+      <tr>
+        <td><span class="pill amber">Elevated risk</span></td>
+        <td>Tomorrow's weather is in the top ~20% (but not top ~10%) historically. OOR rate on these days runs ~13%.</td>
+        <td rowspan="2" style="vertical-align: middle;">Add 1–2 extra visits to chronic-risk ponds in your assigned area. Visit earliest in the morning. Log results.<br><span style="font-size:13px; color:var(--muted);">Same response as High — the data doesn't reliably differentiate them.</span></td>
+      </tr>
+      <tr>
+        <td><span class="pill red">High risk</span></td>
+        <td>Tomorrow's weather is in the top ~10% historically. OOR rate on these days runs ~9% (statistically thin sample).</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="footnote">Treat this as a soft signal, not a hard schedule. Field judgement and geographic constraints still come first. The visual color separation between Elevated and High is preserved so you can see how strong the signal is, but the action is the same.</p>
+</section>
+
+<!-- How accurate is this -->
+<section>
+  <h2>How accurate is this, honestly</h2>
+  <p>Validated against <b>all 513 morning non-follow-up visits in West Godavari from January through early May 2026</b> (~4 months of real operations). Per-tier OOR rates:</p>
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="label">Baseline (all days)</div>
+      <div class="value">9.4%</div>
+      <div class="sub">513 visits, 48 OOR</div>
+    </div>
+    <div class="stat">
+      <div class="label">On Normal days</div>
+      <div class="value">6.7%</div>
+      <div class="sub">298 visits, 20 OOR</div>
+    </div>
+    <div class="stat">
+      <div class="label">On Elevated days</div>
+      <div class="value">13.3%</div>
+      <div class="sub">135 visits, 18 OOR</div>
+    </div>
+    <div class="stat">
+      <div class="label">On High-risk days</div>
+      <div class="value">9.1%</div>
+      <div class="sub">77 visits, 7 OOR (statistically thin)</div>
+    </div>
+  </div>
+  <h3>The honest takeaway</h3>
+  <p>Treating "High" and "Elevated" together as a single <b>Alert tier</b>, you'll find OOR at <b>11.6%</b> on Alert days vs <b>6.7%</b> on Normal days — a <b>1.7× lift</b>. The fine-grained "High vs Elevated" distinction isn't reliable on this dataset (too few visits per tier per day for the difference to be meaningful). Treat both as a single signal that today is unusually risky.</p>
+  <h3>What we initially thought vs what we now see</h3>
+  <p>An earlier validation against just January–March 2026 looked stronger (1.5× lift on top-10% days, 2.3× on top-5%). With four months of YTD data instead of three, the signal is more modest. The Q1 result was partly a favourable seasonal alignment. <b>The 1.7× lift on Alert vs Normal is the realistic expectation.</b></p>
+  <p>Even at 1.7× lift, the model still won't catch most OOR events on its own — your routine visits do most of the work. Its operational value is making your alert-day visits ~70% more productive than your normal-day visits.</p>
+</section>
+
+<!-- Limitations -->
+<section>
+  <h2>Limitations — please read this</h2>
+  <ul>
+    <li><b>It cannot pick which pond is bad.</b> Weather is the same across all Eluru ponds on a given day. The model only tells you whether the day looks risky overall.</li>
+    <li><b>The signal is modest.</b> Alert days have ~11.6% OOR rate vs ~6.7% on Normal days — a 1.7× lift. Even on Alert days, ~88% of visits will find no OOR. This isn't a "this pond is bad" signal, it's a "this day is somewhat riskier than usual" signal.</li>
+    <li><b>The High vs Elevated distinction isn't reliable</b> on the data we've seen so far (4 months). Treat them as one Alert tier; same action either way.</li>
+    <li><b>Validated only on Jan–early May 2026 (dry + early pre-monsoon).</b> We have no validation yet for monsoon or post-monsoon seasons. The relationship between weather and DO may be different in those seasons. Re-validate before assuming the model still works in July–November.</li>
+    <li><b>Eluru only.</b> It was trained on Eluru data and the same regional weather. It is not validated for Nellore.</li>
+    <li><b>Forecast quality.</b> The model was originally tested using the actual weather that occurred. In real use it relies on a day-ahead forecast (which is very accurate for temperature and humidity, decent for wind, noisier for cloud cover and rainfall).</li>
+    <li><b>It's a soft tool, not a routing replacement.</b> Don't change daily routing based on this alone. Use it as one input alongside your normal judgement.</li>
+  </ul>
+</section>
+
+<!-- How it works -->
+<section>
+  <h2>How it works (for the curious)</h2>
+  <p>The model is a <b>Ridge regression</b> that predicts tomorrow's average DO across Eluru ponds, using only weather features from <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> — temperature, wind, humidity, sunshine, rainfall, cloud cover, pressure, dewpoint. It also looks at 3-day and 7-day rolling averages of these to capture multi-day weather accumulation effects.</p>
+  <p>Predicted DO is converted to a "risk score" (lower predicted DO = higher risk). This is compared to historical thresholds from 2024–2025 training data to decide the alert level:</p>
+  <ul>
+    <li><b>High risk</b> = score is in the top 10% of historical Eluru days (about 1 in 10 days).</li>
+    <li><b>Elevated</b> = score is in the top 20% but not top 10%.</li>
+    <li><b>Normal</b> = score is in the bottom 80%.</li>
+  </ul>
+  <p>For operational purposes, treat <b>High and Elevated as a single Alert tier</b>. YTD validation showed the fine-grained High-vs-Elevated distinction isn't statistically reliable on the data we have so far — the 3-tier visual is preserved only to show how strong the underlying signal is.</p>
+  <p>The model was trained on <b>2,236 Eluru morning non-follow-up visits from Jan 2024 – Dec 2025</b> and tested on Jan–early May 2026 data (held out of training). It does <b>not</b> use any pond-specific features — only regional weather. It is one of several models that have been built and compared by FWI volunteers; this one was selected because, at the operational ranking task, it performs as well as or better than the more complex alternatives, and is much simpler to explain and deploy.</p>
+  <details>
+    <summary>Tomorrow's weather (and what the model saw)</summary>
+    <div id="forecastDetails">Loading…</div>
+  </details>
+  <details>
+    <summary>How the score was calculated step-by-step</summary>
+    <div id="scoreDetails">Loading…</div>
+  </details>
+  <details>
+    <summary>Open-Meteo API call (technical)</summary>
+    <div>
+      <p>This page makes a single browser call to Open-Meteo each time it loads:</p>
+      <p><code id="apiCallShown">…</code></p>
+      <p>Open-Meteo is a free, open-source weather data API and does not require a key. The call returns the past 7 days plus today plus tomorrow, which is enough to compute today's lagged-weather features and tomorrow's forecast.</p>
+    </div>
+  </details>
+</section>
+
+<!-- Shadow test pointer (full content lives in Trial design tab) -->
+<section>
+  <h2>Trial logging</h2>
+  <p>Before this model changes daily operations, we want to <b>shadow-test it for 12 weeks</b> with no operational changes — just daily logging of the alert tier alongside normal visit results. The full trial design (timeline, decision criteria, interim checkpoints, why 12 weeks) lives in the <b>Trial design</b> tab at the top of this page. The short version:</p>
+  <ol>
+    <li>Each morning, check this page. Record the alert tier: <b>Normal</b> or <b>Alert</b> (Elevated and High both count as Alert).</li>
+    <li>Visit ponds on your normal schedule (no operational change during the trial).</li>
+    <li>At end of day, log: date, alert tier, # visits, # OOR found.</li>
+    <li>Send weekly logs to Haven (haven@fishwelfareinitiative.org).</li>
+  </ol>
+  <p>After 12 weeks we'll compute the OOR rate gap between Alert and Normal days. The pre-registered criterion for proceeding to an operational pilot is: <b>Alert OOR ≥ 1.5× Normal OOR with 90% CI lower bound above 1.0</b>. If we hit it, we move to a small pilot. If not, we stop and document.</p>
+</section>
+
+<!-- Recalibration note -->
+<section>
+  <h2>What changed in this version</h2>
+  <p>The earlier validation used only Q1 2026 data (3 months, 312 visits). With YTD data through early May (4 months, 513 visits), the model's signal is more modest than initially reported. Three changes were made:</p>
+  <ul>
+    <li><b>Lift expectation lowered.</b> Previously cited 1.5× lift on top-10% days (Q1 only). On YTD data, the realistic figure is <b>1.7× lift on Alert vs Normal days</b> — slightly higher because it groups Elevated+High together, which is the cleaner cut.</li>
+    <li><b>3-tier collapsed to binary in the action protocol.</b> The High vs Elevated distinction wasn't statistically reliable in the YTD data (HIGH had 9.1% OOR on 13 days, ELEVATED had 13.3% on 22 days — the order even flipped). Both tiers now recommend the same action.</li>
+    <li><b>Honest framing about variability.</b> The Q1 number was partly seasonal alignment, not a stable estimate. Plan to recalibrate every quarter as more data arrives.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Source &amp; contact</h2>
+  <p>Built using volunteer-contributed code from the Fish Welfare Initiative ARA modelling project. Source pipeline: <a href="https://github.com/SkyeNygaard/Fishwelfare-Experiments" target="_blank">SkyeNygaard/Fishwelfare-Experiments</a>. Weather data: <a href="https://open-meteo.com" target="_blank">Open-Meteo</a>. Questions, issues, or feedback → Haven (haven@fishwelfareinitiative.org).</p>
+  <p class="footnote" id="modelInfo"></p>
+</section>
+
+</div>
+
+<script>
+// =============================================================
+//  EMBEDDED MODEL  (Ridge regression, weather-only, Eluru)
+// =============================================================
+const MODEL = {"model_name":"FWI Eluru Weather-Only Daily DO Risk (Ridge regression)","trained_on":"Eluru morning non-follow-up visits, Jan 2024 \u2013 Dec 2025","feature_order":["temperature_2m_max","temperature_2m_min","temperature_2m_mean","apparent_temperature_max","apparent_temperature_min","apparent_temperature_mean","precipitation_sum","rain_sum","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","shortwave_radiation_sum","et0_fao_evapotranspiration","relative_humidity_2m_max","relative_humidity_2m_min","relative_humidity_2m_mean","dewpoint_2m_mean","pressure_msl_mean","cloudcover_mean","temp_range","humidity_range","temperature_2m_mean_7d_avg","temperature_2m_mean_3d_avg","windspeed_10m_max_7d_avg","windspeed_10m_max_3d_avg","relative_humidity_2m_mean_7d_avg","relative_humidity_2m_mean_3d_avg","precipitation_sum_7d_avg","precipitation_sum_3d_avg","shortwave_radiation_sum_7d_avg","shortwave_radiation_sum_3d_avg","cloudcover_mean_7d_avg","cloudcover_mean_3d_avg","dewpoint_2m_mean_7d_avg","dewpoint_2m_mean_3d_avg","pressure_msl_mean_7d_avg","pressure_msl_mean_3d_avg"],"openmeteo_var_map":{"temperature_2m_max":"temperature_2m_max","temperature_2m_min":"temperature_2m_min","temperature_2m_mean":"temperature_2m_mean","apparent_temperature_max":"apparent_temperature_max","apparent_temperature_min":"apparent_temperature_min","apparent_temperature_mean":"apparent_temperature_mean","precipitation_sum":"precipitation_sum","rain_sum":"rain_sum","windspeed_10m_max":"windspeed_10m_max","windgusts_10m_max":"windgusts_10m_max","winddirection_10m_dominant":"winddirection_10m_dominant","shortwave_radiation_sum":"shortwave_radiation_sum","et0_fao_evapotranspiration":"et0_fao_evapotranspiration","relative_humidity_2m_max":"relative_humidity_2m_max","relative_humidity_2m_min":"relative_humidity_2m_min","relative_humidity_2m_mean":"relative_humidity_2m_mean","dewpoint_2m_mean":"dewpoint_2m_mean","pressure_msl_mean":"pressure_msl_mean","cloudcover_mean":"cloudcover_mean"},"lag_var_names":["temperature_2m_mean","windspeed_10m_max","relative_humidity_2m_mean","precipitation_sum","shortwave_radiation_sum","cloudcover_mean","dewpoint_2m_mean","pressure_msl_mean"],"scaler_mean":[33.17571556350626,24.158407871198566,27.997629695885507,37.405053667262976,28.32432915921288,32.12388193202147,2.912880143112701,2.912880143112701,15.652191413237926,33.37374776386404,163.14937388193204,18.610384615384614,4.451095706618962,92.94186046511628,49.24865831842576,73.92710196779964,22.31824686940966,1008.6683363148479,58.56171735241503,9.017307692307693,43.69320214669052,27.985521019677996,27.98631484794275,15.66367397137746,15.726990161001783,74.44278686429848,74.13565891472868,3.3358292869920776,2.8986135957066113,18.57154740608229,18.64154069767442,56.83562803475594,57.037939773404894,22.413665985177612,22.352280858676206,1008.6263065422947,1008.6999776386403],"scaler_std":[2.787997479220633,2.793619097498054,2.404529253110572,3.845210115060346,4.048173492908206,3.6504922049601722,6.120687268192046,6.120687268192046,3.669780575620288,7.054468920502125,82.00978962550838,4.137320483393034,1.1213113281319116,6.006199907244963,13.722162355203858,7.840400327160549,2.8849073308462967,4.514535172361784,33.23355097051373,2.725267723493825,14.725204085629173,2.280922523383118,2.3536661066891273,2.970884649978728,3.3727112633390806,6.260984852956765,7.088073762471274,5.563801049605571,4.72400949602255,3.1828730083562613,3.6527351676806687,28.594694700351535,30.494346640835435,2.671025480649418,2.747496695043659,4.308166211062712,4.4281450259221655],"ridge_coef":[0.10634950965867399,0.05559420093169129,-0.0434007931637305,0.00501143009515238,-0.18861063328318023,-0.047742025237944366,-0.007810834268808614,-0.007810834268808617,0.07769578108136399,-0.09321263275927212,-0.013170321185983698,0.06834282083817216,-0.005532510434089698,-0.042326818445022146,0.019620676501131955,-0.060662816487016796,0.24447966670974802,-0.09008543060007027,0.006834336929300122,0.05180890750466643,-0.035548671410054036,0.2659058843643244,-0.1612666418137291,-0.0395473922101029,0.058741530151105704,-0.09150074825649307,-0.002757080087080368,0.031866594179657926,-0.016986842500200373,-0.3023480747797731,0.12032281928535285,-0.0970797978757634,0.0374915671475399,0.016053238376819504,0.024144116054331085,0.046099037436600106,0.09924568843934761],"ridge_intercept":3.500089445438279,"imputer_median":[32.849999999999994,24.9,28.05,37.5,29.5,32.7,0.1,0.1,15.4,33.1,159.0,19.22,4.45,95.0,48.0,73.0,23.1,1008.8,65.0,8.8,43.0,28.071428571428573,28.0,15.457142857142859,15.333333333333334,73.57142857142857,73.0,0.9142857142857144,0.2499999999999905,18.774285714285718,19.131666666666668,55.142857142857146,56.83333333333333,23.32857142857143,23.133333333333336,1008.9428571428572,1008.9666666666666],"thresholds_risk_score":{"top_5_pct":-3.1998293341685953,"top_10_pct":-3.277541744098196,"top_20_pct":-3.3561216316292777},"training_daily_risk_summary":{"min":-4.343702605675316,"median":-3.508852401862303,"mean":-3.513010408723173,"max":-2.837343097087235,"n_days":431},"test_evaluation_q1_2026":{"n_days_in_test":53,"n_visits_in_test":312,"n_oor_in_test":29,"overall_oor_rate":0.09294871794871795,"tiers":{"top_5_pct":{"training_threshold":-3.1998293341685953,"by_training_threshold":{"n_alert_days":1,"n_visits":3,"n_oor":3,"rate":1.0,"lift":10.758620689655173},"by_exact_percentile":{"n_alert_days":3,"n_visits":14,"n_oor":3,"rate":0.21428571428571427,"lift":2.3054187192118225}},"top_10_pct":{"training_threshold":-3.277541744098196,"by_training_threshold":{"n_alert_days":14,"n_visits":80,"n_oor":10,"rate":0.125,"lift":1.3448275862068966},"by_exact_percentile":{"n_alert_days":5,"n_visits":21,"n_oor":3,"rate":0.14285714285714285,"lift":1.5369458128078817}},"top_20_pct":{"training_threshold":-3.3561216316292777,"by_training_threshold":{"n_alert_days":34,"n_visits":188,"n_oor":23,"rate":0.12234042553191489,"lift":1.3162142333088773},"by_exact_percentile":{"n_alert_days":11,"n_visits":63,"n_oor":8,"rate":0.12698412698412698,"lift":1.3661740558292281}}}},"sanity_test_rows":[{"date":"2026-01-02","expected_predicted_do":3.2669145801171897,"expected_risk_score":-3.2669145801171897,"first_5_features":{"temperature_2m_max":30.5,"temperature_2m_min":20.2,"temperature_2m_mean":24.4,"apparent_temperature_max":32.6,"apparent_temperature_min":23.0}},{"date":"2026-01-03","expected_predicted_do":3.227183182383908,"expected_risk_score":-3.227183182383908,"first_5_features":{"temperature_2m_max":29.7,"temperature_2m_min":20.4,"temperature_2m_mean":24.2,"apparent_temperature_max":31.4,"apparent_temperature_min":23.2}},{"date":"2026-01-04","expected_predicted_do":3.279017858417284,"expected_risk_score":-3.279017858417284,"first_5_features":{"temperature_2m_max":29.6,"temperature_2m_min":19.5,"temperature_2m_mean":23.6,"apparent_temperature_max":31.2,"apparent_temperature_min":22.3}},{"date":"2026-01-05","expected_predicted_do":3.389935252478738,"expected_risk_score":-3.389935252478738,"first_5_features":{"temperature_2m_max":29.8,"temperature_2m_min":19.5,"temperature_2m_mean":23.7,"apparent_temperature_max":31.3,"apparent_temperature_min":22.0}},{"date":"2026-01-06","expected_predicted_do":3.290298821214939,"expected_risk_score":-3.290298821214939,"first_5_features":{"temperature_2m_max":29.8,"temperature_2m_min":19.6,"temperature_2m_mean":23.7,"apparent_temperature_max":31.1,"apparent_temperature_min":22.1}}]};
+
+const ELURU = { lat: 16.6423, lon: 81.1161 };
+
+// Build the Open-Meteo URL: 19 daily variables, past 7 days, today + tomorrow
+function buildOpenMeteoURL() {
+  const dailyVars = Object.values(MODEL.openmeteo_var_map);
+  const params = new URLSearchParams({
+    latitude:  ELURU.lat,
+    longitude: ELURU.lon,
+    daily: dailyVars.join(","),
+    timezone: "Asia/Kolkata",
+    past_days: "7",
+    forecast_days: "2",
+  });
+  return "https://api.open-meteo.com/v1/forecast?" + params.toString();
+}
+
+// Engineer features for one specific day index `t` in the API response.
+// `daily` is the {var: array} payload. `t` is the day index (where t = forecast day).
+function engineerFeatures(daily, t) {
+  const f = {};
+  for (const [modelName, omName] of Object.entries(MODEL.openmeteo_var_map)) {
+    f[modelName] = daily[omName][t];
+  }
+  // Derived
+  f["temp_range"]     = f["temperature_2m_max"] - f["temperature_2m_min"];
+  f["humidity_range"] = f["relative_humidity_2m_max"] - f["relative_humidity_2m_min"];
+  // Lagged: rolling means INCLUDING the current day, matching Skye's pipeline
+  for (const v of MODEL.lag_var_names) {
+    const arr = daily[v];
+    const w7 = arr.slice(Math.max(0, t - 6), t + 1).filter(x => x !== null && !isNaN(x));
+    const w3 = arr.slice(Math.max(0, t - 2), t + 1).filter(x => x !== null && !isNaN(x));
+    f[`${v}_7d_avg`] = w7.length ? w7.reduce((a,b)=>a+b,0)/w7.length : null;
+    f[`${v}_3d_avg`] = w3.length ? w3.reduce((a,b)=>a+b,0)/w3.length : null;
+  }
+  return f;
+}
+
+// Standardize, impute missing with training median, then dot with ridge coef.
+function predict(features) {
+  const order = MODEL.feature_order;
+  let z = MODEL.ridge_intercept;
+  const contribs = []; // for breakdown display
+  for (let i = 0; i < order.length; i++) {
+    const k = order[i];
+    let v = features[k];
+    if (v === null || v === undefined || isNaN(v)) v = MODEL.imputer_median[i];
+    const scaled = (v - MODEL.scaler_mean[i]) / MODEL.scaler_std[i];
+    const c = MODEL.ridge_coef[i] * scaled;
+    z += c;
+    contribs.push({ feature: k, raw: v, scaled, coef: MODEL.ridge_coef[i], contrib: c });
+  }
+  return { predictedDo: z, riskScore: -z, contribs };
+}
+
+function classify(riskScore) {
+  const t = MODEL.thresholds_risk_score;
+  // Note: per YTD validation, the High vs Elevated distinction isn't statistically reliable.
+  // We render both as "Alert" with the same operational action, but preserve the visual tier
+  // (color + label) so users can see how strong the underlying signal is.
+  const ALERT_ACTION = "Add 1–2 extra visits to chronic-risk ponds in your assigned area. Visit earliest in the morning. Log results.";
+  if (riskScore >= t.top_10_pct)
+    return { level: "High risk", className: "high", action: ALERT_ACTION };
+  if (riskScore >= t.top_20_pct)
+    return { level: "Elevated risk", className: "elevated", action: ALERT_ACTION };
+  return { level: "Normal", className: "normal",
+           action: "Visit on your normal schedule. Optionally trim 1 visit and redistribute capacity to alert days." };
+}
+
+function fmt(v, d=1) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  return Number(v).toFixed(d);
+}
+function pct(v, d=1) { return v == null ? "—" : (v*100).toFixed(d) + "%"; }
+
+async function loadAndRender() {
+  document.getElementById("errorBox").innerHTML = "";
+  document.getElementById("bannerLevel").textContent = "Loading…";
+  document.getElementById("bannerAction").textContent = "Fetching weather forecast and computing the model…";
+  document.getElementById("bannerMeta").innerHTML = "";
+
+  const url = buildOpenMeteoURL();
+  document.getElementById("apiCallShown").textContent = url;
+
+  let resp, payload;
+  try {
+    resp = await fetch(url);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    payload = await resp.json();
+  } catch (err) {
+    document.getElementById("errorBox").innerHTML =
+      `<div class="err"><b>Could not fetch weather:</b> ${err.message}.<br>
+       Check your internet connection and try again. The Open-Meteo API may also be temporarily unavailable.</div>`;
+    document.getElementById("bannerLevel").textContent = "Unable to load";
+    document.getElementById("bannerAction").textContent = "See error above.";
+    return;
+  }
+
+  const daily = payload.daily;
+  const dates = daily.time;
+  // Forecast day is the LAST day in the response (forecast_days=2 → today and tomorrow)
+  // Use index = dates.length - 1 (tomorrow)
+  const t = dates.length - 1;
+  const tomorrowDate = dates[t];
+
+  const feats = engineerFeatures(daily, t);
+  const { predictedDo, riskScore, contribs } = predict(feats);
+  const cls = classify(riskScore);
+
+  // ---- Banner ----
+  const banner = document.getElementById("banner");
+  banner.classList.remove("normal","elevated","high");
+  banner.classList.add(cls.className);
+  document.getElementById("bannerLevel").textContent = cls.level;
+  document.getElementById("bannerAction").textContent = cls.action;
+  document.getElementById("bannerMeta").innerHTML = `
+    <span>Forecast date: <b>${tomorrowDate}</b></span>
+    <span>Predicted regional DO: <b>${fmt(predictedDo,2)} mg/L</b></span>
+    <span>Risk score: <b>${fmt(riskScore,3)}</b></span>
+    <span>Threshold for High risk: <b>${fmt(MODEL.thresholds_risk_score.top_10_pct,3)}</b></span>
+  `;
+
+  document.getElementById("actionPlan").innerHTML =
+    `<p><b>${cls.level}</b> — ${cls.action}</p>`;
+
+  // ---- Last updated ----
+  const now = new Date();
+  document.getElementById("lastUpdated").textContent =
+    "Last loaded: " + now.toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" });
+
+  // ---- Forecast details ----
+  const fcastTbody = ["temperature_2m_max","temperature_2m_min","temperature_2m_mean",
+    "windspeed_10m_max","windgusts_10m_max","relative_humidity_2m_mean","dewpoint_2m_mean",
+    "precipitation_sum","cloudcover_mean","shortwave_radiation_sum","pressure_msl_mean"];
+  const labels = {
+    temperature_2m_max: "Max temperature (°C)",
+    temperature_2m_min: "Min temperature (°C)",
+    temperature_2m_mean: "Mean temperature (°C)",
+    windspeed_10m_max: "Max wind speed (km/h)",
+    windgusts_10m_max: "Max wind gusts (km/h)",
+    relative_humidity_2m_mean: "Mean humidity (%)",
+    dewpoint_2m_mean: "Mean dewpoint (°C)",
+    precipitation_sum: "Precipitation (mm)",
+    cloudcover_mean: "Cloud cover (%)",
+    shortwave_radiation_sum: "Sunshine / solar radiation (MJ/m²)",
+    pressure_msl_mean: "Pressure (hPa)",
+  };
+  let html = `<table><thead><tr><th>Variable</th><th class="num">Tomorrow</th><th class="num">Yesterday</th><th class="num">7-day avg (incl. tomorrow)</th></tr></thead><tbody>`;
+  for (const v of fcastTbody) {
+    const tomorrow = daily[v][t];
+    const yesterday = daily[v][t-1];
+    const last7 = daily[v].slice(Math.max(0, t-6), t+1).filter(x => x!==null && !isNaN(x));
+    const avg7 = last7.length ? last7.reduce((a,b)=>a+b,0)/last7.length : null;
+    html += `<tr><td>${labels[v] || v}</td><td class="num">${fmt(tomorrow)}</td><td class="num">${fmt(yesterday)}</td><td class="num">${fmt(avg7)}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  document.getElementById("forecastDetails").innerHTML = html;
+
+  // ---- Score breakdown ----
+  const sortedContribs = [...contribs].sort((a,b) => Math.abs(b.contrib) - Math.abs(a.contrib));
+  let sb = `<p>Predicted DO = intercept + Σ (weight × scaled_feature). Top contributors today (positive raises predicted DO → lowers risk; negative lowers predicted DO → raises risk):</p>`;
+  sb += `<table><thead><tr><th>Feature</th><th class="num">Raw value</th><th class="num">Weight × scaled</th><th>Direction</th></tr></thead><tbody>`;
+  for (const c of sortedContribs.slice(0, 10)) {
+    const direction = c.contrib > 0 ? "<span class='pill green'>↑ predicted DO</span>" : "<span class='pill red'>↓ predicted DO</span>";
+    sb += `<tr><td><code>${c.feature}</code></td><td class="num">${fmt(c.raw,2)}</td><td class="num">${fmt(c.contrib,3)}</td><td>${direction}</td></tr>`;
+  }
+  sb += `</tbody></table>`;
+  sb += `<p class="footnote">Intercept: ${fmt(MODEL.ridge_intercept,3)} mg/L · Sum of contributions: ${fmt(predictedDo - MODEL.ridge_intercept, 3)} mg/L · Final predicted DO: <b>${fmt(predictedDo,2)} mg/L</b></p>`;
+  document.getElementById("scoreDetails").innerHTML = sb;
+
+  // ---- Model info footer ----
+  document.getElementById("modelInfo").textContent =
+    `Model: ${MODEL.model_name}. Trained on: ${MODEL.trained_on}. ${MODEL.feature_order.length} weather features.`;
+}
+
+document.getElementById("refreshBtn").addEventListener("click", loadAndRender);
+
+// =============================================================
+//  TABS
+// =============================================================
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.tab).classList.add("active");
+  });
+});
+
+// =============================================================
+//  HISTORICAL OOR (FWI ground truth) — one entry per date in our records
+// =============================================================
+const HISTORICAL_OOR = {"2024-01-02":{"visits":7,"oor":4,"rate":0.5714285714285714,"in":"train_2024_2025"},"2024-01-03":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-01-04":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-07":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2024-01-08":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-09":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-10":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-11":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2024-01-22":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-23":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-25":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-01-29":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-01-30":{"visits":4,"oor":1,"rate":0.25,"in":"train_2024_2025"},"2024-02-03":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-04":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2024-02-05":{"visits":3,"oor":3,"rate":1.0,"in":"train_2024_2025"},"2024-02-06":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-02-08":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-12":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-13":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2024-02-15":{"visits":2,"oor":2,"rate":1.0,"in":"train_2024_2025"},"2024-02-16":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-18":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-19":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2024-02-20":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-21":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-02-23":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-25":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-26":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-02-28":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2024-03-03":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-04":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-05":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-06":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-07":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-09":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-11":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-12":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-13":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-14":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-15":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-16":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-18":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-19":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-20":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-03-22":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-03-23":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-02":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-03":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-04":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-05":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-06":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-08":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-10":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-11":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-12":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-13":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-15":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-16":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-17":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-19":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-26":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-27":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2024-04-29":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-04-30":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-05-01":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-02":{"visits":8,"oor":1,"rate":0.125,"in":"train_2024_2025"},"2024-05-03":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-05":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-06":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-07":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-09":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-10":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-11":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-12":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-14":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-15":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-16":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-18":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-05-21":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-22":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-23":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-25":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-26":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-27":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-30":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-05-31":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-03":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-04":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-05":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-06":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-07":{"visits":4,"oor":1,"rate":0.25,"in":"train_2024_2025"},"2024-06-08":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-09":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-10":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-11":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2024-06-12":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-13":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-14":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-15":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-17":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-18":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-21":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-06-26":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-07-02":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-07-04":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-07-08":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-07-11":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-07-15":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-07-16":{"visits":8,"oor":1,"rate":0.125,"in":"train_2024_2025"},"2024-07-23":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-08-02":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-08-09":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-08-13":{"visits":3,"oor":3,"rate":1.0,"in":"train_2024_2025"},"2024-08-14":{"visits":3,"oor":3,"rate":1.0,"in":"train_2024_2025"},"2024-08-17":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-08-18":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-08-20":{"visits":6,"oor":3,"rate":0.5,"in":"train_2024_2025"},"2024-08-21":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-08-22":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2024-08-28":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-08-29":{"visits":7,"oor":1,"rate":0.14285714285714285,"in":"train_2024_2025"},"2024-08-30":{"visits":2,"oor":2,"rate":1.0,"in":"train_2024_2025"},"2024-09-03":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-05":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-06":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-11":{"visits":9,"oor":4,"rate":0.4444444444444444,"in":"train_2024_2025"},"2024-09-12":{"visits":8,"oor":3,"rate":0.375,"in":"train_2024_2025"},"2024-09-13":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-15":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-16":{"visits":2,"oor":2,"rate":1.0,"in":"train_2024_2025"},"2024-09-17":{"visits":7,"oor":2,"rate":0.2857142857142857,"in":"train_2024_2025"},"2024-09-18":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-19":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-20":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-23":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-09-24":{"visits":7,"oor":2,"rate":0.2857142857142857,"in":"train_2024_2025"},"2024-09-28":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-09-30":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-01":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-02":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-03":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-04":{"visits":11,"oor":1,"rate":0.09090909090909091,"in":"train_2024_2025"},"2024-10-05":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-06":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-07":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-10-08":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-09":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-10":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-16":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-17":{"visits":4,"oor":3,"rate":0.75,"in":"train_2024_2025"},"2024-10-18":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-21":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-23":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-24":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-10-26":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-05":{"visits":8,"oor":5,"rate":0.625,"in":"train_2024_2025"},"2024-11-06":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2024-11-09":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-11":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2024-11-12":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2024-11-13":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-14":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-15":{"visits":4,"oor":1,"rate":0.25,"in":"train_2024_2025"},"2024-11-19":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-20":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-21":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-22":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-23":{"visits":4,"oor":1,"rate":0.25,"in":"train_2024_2025"},"2024-11-25":{"visits":4,"oor":3,"rate":0.75,"in":"train_2024_2025"},"2024-11-26":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-11-27":{"visits":7,"oor":6,"rate":0.8571428571428571,"in":"train_2024_2025"},"2024-11-28":{"visits":1,"oor":1,"rate":1.0,"in":"train_2024_2025"},"2024-11-29":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-02":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2024-12-03":{"visits":8,"oor":2,"rate":0.25,"in":"train_2024_2025"},"2024-12-04":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-05":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-06":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-07":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-08":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-10":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-11":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-12":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-13":{"visits":10,"oor":2,"rate":0.2,"in":"train_2024_2025"},"2024-12-15":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-16":{"visits":8,"oor":1,"rate":0.125,"in":"train_2024_2025"},"2024-12-17":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-18":{"visits":4,"oor":3,"rate":0.75,"in":"train_2024_2025"},"2024-12-19":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-23":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-26":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-27":{"visits":11,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-28":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-29":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-30":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2024-12-31":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-02":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-03":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-06":{"visits":10,"oor":2,"rate":0.2,"in":"train_2024_2025"},"2025-01-07":{"visits":11,"oor":2,"rate":0.18181818181818182,"in":"train_2024_2025"},"2025-01-08":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-09":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-10":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-11":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-20":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-21":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-22":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-23":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-24":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-28":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-29":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-01-30":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-03":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-04":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-05":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-06":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-07":{"visits":9,"oor":3,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-02-10":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-02-11":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-02-12":{"visits":6,"oor":4,"rate":0.6666666666666666,"in":"train_2024_2025"},"2025-02-13":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-18":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-20":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-21":{"visits":8,"oor":2,"rate":0.25,"in":"train_2024_2025"},"2025-02-22":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-24":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-25":{"visits":7,"oor":3,"rate":0.42857142857142855,"in":"train_2024_2025"},"2025-02-27":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-02-28":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2025-03-04":{"visits":7,"oor":2,"rate":0.2857142857142857,"in":"train_2024_2025"},"2025-03-05":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-06":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2025-03-07":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-08":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-10":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2025-03-11":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-12":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-13":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-17":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-18":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-19":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-20":{"visits":5,"oor":5,"rate":1.0,"in":"train_2024_2025"},"2025-03-21":{"visits":7,"oor":3,"rate":0.42857142857142855,"in":"train_2024_2025"},"2025-03-24":{"visits":3,"oor":2,"rate":0.6666666666666666,"in":"train_2024_2025"},"2025-03-25":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-26":{"visits":9,"oor":3,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-03-27":{"visits":6,"oor":6,"rate":1.0,"in":"train_2024_2025"},"2025-03-28":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-29":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-03-31":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-01":{"visits":12,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-02":{"visits":14,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-03":{"visits":14,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-04":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-08":{"visits":11,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-09":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-10":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-11":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2025-04-14":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-15":{"visits":6,"oor":1,"rate":0.16666666666666666,"in":"train_2024_2025"},"2025-04-16":{"visits":7,"oor":1,"rate":0.14285714285714285,"in":"train_2024_2025"},"2025-04-17":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-22":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-23":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-24":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-25":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-26":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-28":{"visits":12,"oor":1,"rate":0.08333333333333333,"in":"train_2024_2025"},"2025-04-29":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-04-30":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-01":{"visits":12,"oor":1,"rate":0.08333333333333333,"in":"train_2024_2025"},"2025-05-02":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-03":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-04":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-07":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-08":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"train_2024_2025"},"2025-05-09":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-10":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-12":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-13":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-14":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-15":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-19":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-21":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-05-23":{"visits":4,"oor":1,"rate":0.25,"in":"train_2024_2025"},"2025-05-26":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-27":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-28":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-05-29":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-02":{"visits":9,"oor":2,"rate":0.2222222222222222,"in":"train_2024_2025"},"2025-06-03":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-04":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-06-05":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"train_2024_2025"},"2025-06-06":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-09":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-06-10":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-11":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-12":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-13":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-16":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-17":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-18":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-19":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-06-20":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2025-06-23":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-24":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-25":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-26":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-06-27":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-01":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-02":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2025-07-03":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-04":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2025-07-07":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-08":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-09":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-10":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-11":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-14":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-15":{"visits":11,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-16":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-17":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-18":{"visits":3,"oor":1,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-07-21":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-23":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-24":{"visits":4,"oor":3,"rate":0.75,"in":"train_2024_2025"},"2025-07-27":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-28":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-29":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-30":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-07-31":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-01":{"visits":8,"oor":4,"rate":0.5,"in":"train_2024_2025"},"2025-08-04":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-05":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"train_2024_2025"},"2025-08-06":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-07":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-11":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-12":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-13":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-18":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-19":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-20":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-21":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-22":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-23":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-25":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-08-26":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-03":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-05":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-08":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-09":{"visits":3,"oor":3,"rate":1.0,"in":"train_2024_2025"},"2025-09-10":{"visits":13,"oor":4,"rate":0.3076923076923077,"in":"train_2024_2025"},"2025-09-11":{"visits":13,"oor":5,"rate":0.38461538461538464,"in":"train_2024_2025"},"2025-09-12":{"visits":11,"oor":5,"rate":0.45454545454545453,"in":"train_2024_2025"},"2025-09-13":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-14":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-15":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"train_2024_2025"},"2025-09-16":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-17":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-19":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-20":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-21":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-22":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-23":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-24":{"visits":4,"oor":1,"rate":0.25,"in":"train_2024_2025"},"2025-09-25":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-26":{"visits":12,"oor":2,"rate":0.16666666666666666,"in":"train_2024_2025"},"2025-09-27":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2025-09-28":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-29":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-09-30":{"visits":15,"oor":3,"rate":0.2,"in":"train_2024_2025"},"2025-10-01":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-04":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-06":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-08":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-09":{"visits":10,"oor":5,"rate":0.5,"in":"train_2024_2025"},"2025-10-10":{"visits":12,"oor":1,"rate":0.08333333333333333,"in":"train_2024_2025"},"2025-10-11":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-12":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-13":{"visits":2,"oor":1,"rate":0.5,"in":"train_2024_2025"},"2025-10-14":{"visits":13,"oor":3,"rate":0.23076923076923078,"in":"train_2024_2025"},"2025-10-15":{"visits":12,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-16":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-27":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-30":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-10-31":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-02":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-03":{"visits":8,"oor":4,"rate":0.5,"in":"train_2024_2025"},"2025-11-04":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-05":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-06":{"visits":6,"oor":4,"rate":0.6666666666666666,"in":"train_2024_2025"},"2025-11-07":{"visits":5,"oor":1,"rate":0.2,"in":"train_2024_2025"},"2025-11-08":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-10":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-11":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-12":{"visits":6,"oor":2,"rate":0.3333333333333333,"in":"train_2024_2025"},"2025-11-13":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-14":{"visits":11,"oor":4,"rate":0.36363636363636365,"in":"train_2024_2025"},"2025-11-17":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-18":{"visits":8,"oor":2,"rate":0.25,"in":"train_2024_2025"},"2025-11-19":{"visits":11,"oor":1,"rate":0.09090909090909091,"in":"train_2024_2025"},"2025-11-20":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-21":{"visits":12,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-22":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-24":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-25":{"visits":10,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-26":{"visits":9,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-11-27":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-02":{"visits":10,"oor":1,"rate":0.1,"in":"train_2024_2025"},"2025-12-03":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-04":{"visits":8,"oor":1,"rate":0.125,"in":"train_2024_2025"},"2025-12-05":{"visits":7,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-06":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-08":{"visits":6,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-09":{"visits":4,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-10":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-11":{"visits":2,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-12":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-16":{"visits":11,"oor":1,"rate":0.09090909090909091,"in":"train_2024_2025"},"2025-12-17":{"visits":3,"oor":3,"rate":1.0,"in":"train_2024_2025"},"2025-12-18":{"visits":8,"oor":2,"rate":0.25,"in":"train_2024_2025"},"2025-12-19":{"visits":7,"oor":3,"rate":0.42857142857142855,"in":"train_2024_2025"},"2025-12-20":{"visits":1,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-21":{"visits":3,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-22":{"visits":5,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-23":{"visits":8,"oor":2,"rate":0.25,"in":"train_2024_2025"},"2025-12-24":{"visits":11,"oor":1,"rate":0.09090909090909091,"in":"train_2024_2025"},"2025-12-29":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"train_2024_2025"},"2025-12-30":{"visits":8,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2025-12-31":{"visits":12,"oor":0,"rate":0.0,"in":"train_2024_2025"},"2026-01-02":{"visits":13,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-03":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-04":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-05":{"visits":12,"oor":1,"rate":0.08333333333333333,"in":"test_2026_q1"},"2026-01-06":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-07":{"visits":8,"oor":2,"rate":0.25,"in":"test_2026_q1"},"2026-01-08":{"visits":2,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-18":{"visits":2,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-19":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-21":{"visits":7,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-22":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-23":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-01-27":{"visits":7,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-02":{"visits":6,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-04":{"visits":10,"oor":1,"rate":0.1,"in":"test_2026_q1"},"2026-02-05":{"visits":11,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-06":{"visits":6,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-07":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-08":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-09":{"visits":7,"oor":1,"rate":0.14285714285714285,"in":"test_2026_q1"},"2026-02-10":{"visits":7,"oor":2,"rate":0.2857142857142857,"in":"test_2026_q1"},"2026-02-11":{"visits":3,"oor":2,"rate":0.6666666666666666,"in":"test_2026_q1"},"2026-02-12":{"visits":1,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-13":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-14":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-17":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-18":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-19":{"visits":9,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-20":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"test_2026_q1"},"2026-02-22":{"visits":1,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-23":{"visits":7,"oor":2,"rate":0.2857142857142857,"in":"test_2026_q1"},"2026-02-24":{"visits":3,"oor":3,"rate":1.0,"in":"test_2026_q1"},"2026-02-25":{"visits":10,"oor":4,"rate":0.4,"in":"test_2026_q1"},"2026-02-26":{"visits":4,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-02-27":{"visits":10,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-02":{"visits":7,"oor":1,"rate":0.14285714285714285,"in":"test_2026_q1"},"2026-03-03":{"visits":5,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-04":{"visits":2,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-05":{"visits":9,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-06":{"visits":9,"oor":1,"rate":0.1111111111111111,"in":"test_2026_q1"},"2026-03-08":{"visits":2,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-09":{"visits":11,"oor":6,"rate":0.5454545454545454,"in":"test_2026_q1"},"2026-03-10":{"visits":13,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-11":{"visits":6,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-12":{"visits":8,"oor":1,"rate":0.125,"in":"test_2026_q1"},"2026-03-13":{"visits":12,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-14":{"visits":2,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-15":{"visits":1,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-16":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-17":{"visits":8,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-18":{"visits":3,"oor":0,"rate":0.0,"in":"test_2026_q1"},"2026-03-23":{"visits":8,"oor":1,"rate":0.125,"in":"test_2026_q1"},"2026-03-24":{"visits":5,"oor":0,"rate":0.0,"in":"test_2026_q1"}};
+
+// Default the date picker to a known interesting day for spot-checking
+(function initLookup() {
+  const inp = document.getElementById("lookupDate");
+  // default to an interesting test-set date (one of the known high-risk Q1 2026 days)
+  inp.value = "2026-02-13";
+  const today = new Date();
+  today.setDate(today.getDate() - 1); // archive needs a day of lag
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  inp.max = `${yyyy}-${mm}-${dd}`;
+})();
+
+document.getElementById("lookupBtn").addEventListener("click", runHistoricalLookup);
+
+function buildHistoricalURL(targetDate, mode) {
+  // Need the target date PLUS the prior 7 days for lag features
+  const target = new Date(targetDate + "T00:00:00");
+  const start = new Date(target); start.setDate(target.getDate() - 7);
+  const fmtDate = d => d.toISOString().slice(0,10);
+  const dailyVars = Object.values(MODEL.openmeteo_var_map);
+  const params = new URLSearchParams({
+    latitude:  ELURU.lat,
+    longitude: ELURU.lon,
+    start_date: fmtDate(start),
+    end_date:   targetDate,
+    daily: dailyVars.join(","),
+    timezone: "Asia/Kolkata",
+  });
+  const base = mode === "reanalysis"
+    ? "https://archive-api.open-meteo.com/v1/archive"
+    : "https://historical-forecast-api.open-meteo.com/v1/forecast";
+  return base + "?" + params.toString();
+}
+
+async function runHistoricalLookup() {
+  const dateStr = document.getElementById("lookupDate").value;
+  const mode = document.querySelector('input[name="srcMode"]:checked').value;
+  if (!dateStr) return;
+
+  const errBox = document.getElementById("lookupErrorBox");
+  const out = document.getElementById("lookupResult");
+  errBox.innerHTML = "";
+  out.innerHTML = `<p style="color: var(--muted); margin-top: 16px;">Fetching ${mode === "reanalysis" ? "reanalysis" : "day-ahead forecast"} for ${dateStr}…</p>`;
+
+  const url = buildHistoricalURL(dateStr, mode);
+  let payload;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    payload = await r.json();
+  } catch (err) {
+    out.innerHTML = "";
+    errBox.innerHTML = `<div class="err"><b>Could not fetch ${mode}:</b> ${err.message}.<br>
+      Some early or future dates may not be available in this source. Try the other source, or pick a different date.</div>`;
+    return;
+  }
+
+  const daily = payload.daily;
+  const dates = daily.time;
+  const t = dates.length - 1; // target date = last in range
+  if (dates[t] !== dateStr) {
+    out.innerHTML = "";
+    errBox.innerHTML = `<div class="err">Open-Meteo returned dates ending at ${dates[t]} instead of ${dateStr}. The chosen date may not yet be available in this data source.</div>`;
+    return;
+  }
+
+  const feats = engineerFeatures(daily, t);
+  const { predictedDo, riskScore, contribs } = predict(feats);
+  const cls = classify(riskScore);
+
+  // Ground truth lookup
+  const gt = HISTORICAL_OOR[dateStr] || null;
+
+  // Verdict
+  let verdictHtml = "";
+  if (gt) {
+    const isAlert = cls.className !== "normal";
+    const isReallyBad = (gt.rate >= 0.20);
+    let cssClass = "none";
+    let label = "";
+    if (isAlert && isReallyBad) {
+      cssClass = "match"; label = `Hit — model said ${cls.level}, and ${gt.oor}/${gt.visits} visits (${(gt.rate*100).toFixed(0)}%) were OOR. Above the 9% baseline.`;
+    } else if (isAlert && !isReallyBad) {
+      cssClass = "miss"; label = `Possible false positive — model said ${cls.level}, but only ${gt.oor}/${gt.visits} visits (${(gt.rate*100).toFixed(0)}%) were OOR.`;
+    } else if (!isAlert && isReallyBad) {
+      cssClass = "miss"; label = `Possible miss — model said Normal, but ${gt.oor}/${gt.visits} visits (${(gt.rate*100).toFixed(0)}%) were OOR. Day was unexpectedly bad.`;
+    } else {
+      cssClass = "match"; label = `Quiet day, model agreed — ${gt.oor}/${gt.visits} visits (${(gt.rate*100).toFixed(0)}%) OOR, model said Normal.`;
+    }
+    verdictHtml = `
+      <div class="verdict ${cssClass}">
+        <div style="font-weight:600; margin-bottom:4px;">${label}</div>
+        <div style="font-size:13px; color: var(--muted);">Source: FWI ${gt.in.replace("_"," ").replace("q1","Q1")} dataset.</div>
+      </div>`;
+  } else {
+    verdictHtml = `
+      <div class="verdict none">
+        <div style="font-weight:600;">No FWI ground-truth records for this date.</div>
+        <div style="font-size:13px; color: var(--muted); margin-top:4px;">Records cover Eluru morning non-follow-up visits from Jan 2024 – Mar 2026. Pick a date in that range to compare model vs reality.</div>
+      </div>`;
+  }
+
+  // Render
+  const sourceLabel = mode === "reanalysis" ? "Reanalysis (hindsight)" : "Day-ahead forecast (deployment-realistic)";
+  let html = `
+    <div class="banner ${cls.className}" style="margin-top: 18px;">
+      <div class="label">Model output for ${dateStr} · ${sourceLabel}</div>
+      <div class="level">${cls.level}</div>
+      <div class="what-to-do">${cls.action}</div>
+      <div class="meta-row">
+        <span>Predicted regional DO: <b>${fmt(predictedDo,2)} mg/L</b></span>
+        <span>Risk score: <b>${fmt(riskScore,3)}</b></span>
+        <span>High threshold: <b>${fmt(MODEL.thresholds_risk_score.top_10_pct,3)}</b></span>
+        <span>Elevated threshold: <b>${fmt(MODEL.thresholds_risk_score.top_20_pct,3)}</b></span>
+      </div>
+    </div>
+    ${verdictHtml}
+  `;
+
+  // Also show the model's other-source prediction inline for comparison if it's the deployment-realistic call
+  if (mode === "forecast") {
+    html += `<p class="footnote" style="margin-top:14px;">Want to see the perfect-hindsight version (reanalysis) for the same date? Switch the toggle and click Look up again. Differences indicate how much real-deployment performance degrades from ideal-information performance.</p>`;
+  } else {
+    html += `<p class="footnote" style="margin-top:14px;">This score uses the actual weather that occurred (reanalysis). Real-deployment scores will be slightly different because they rely on day-ahead forecasts. Toggle to "Day-ahead forecast" to see what staff would actually have seen.</p>`;
+  }
+
+  // Top contributors
+  const sortedContribs = [...contribs].sort((a,b) => Math.abs(b.contrib) - Math.abs(a.contrib));
+  html += `<details style="margin-top: 14px;">
+    <summary>What drove the score on ${dateStr} (top 10 contributors)</summary>
+    <div><table><thead><tr><th>Feature</th><th class="num">Raw value</th><th class="num">Weight × scaled</th><th>Direction</th></tr></thead><tbody>`;
+  for (const c of sortedContribs.slice(0, 10)) {
+    const direction = c.contrib > 0 ? "<span class='pill green'>↑ predicted DO</span>" : "<span class='pill red'>↓ predicted DO</span>";
+    html += `<tr><td><code>${c.feature}</code></td><td class="num">${fmt(c.raw,2)}</td><td class="num">${fmt(c.contrib,3)}</td><td>${direction}</td></tr>`;
+  }
+  html += `</tbody></table></div></details>`;
+
+  out.innerHTML = html;
+}
+
+loadAndRender();
+</script>
+</body>
+</html>

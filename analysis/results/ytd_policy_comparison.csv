@@ -1,0 +1,11 @@
+policy,total_visits,expected_oor,oor_rate,delta_visits,delta_oor,delta_rate_pp
+baseline (observed),513.0,48.0,9.36,0.0,0.0,0.0
+"user_proposal: HIGH×1.5, others V-1",488.0,48.44,9.93,-25.0,0.44,0.57
+"user_strict: HIGH×1.5, ELEV=, NORMAL V-1",510.0,50.76,9.95,-3.0,2.76,0.6
+"reallocate_neutral: keep total visits, weight 2.5/2/1.5/1",513.0,47.83,9.32,0.0,-0.17,-0.03
+alert_only: visit only HIGH+ELEVATED days,215.0,28.0,13.02,-298.0,-20.0,3.67
+high_only: visit only HIGH days,80.0,10.0,12.5,-433.0,-38.0,3.14
+inverse (sanity): NORMAL only,298.0,20.0,6.71,-215.0,-28.0,-2.65
+"capacity-neutral: HIGH×1.5, NORMAL each -0.93",513.0,50.91,9.92,-0.0,2.91,0.57
+"binary_neutral: alert +1.19, normal -1",513.0,50.63,9.87,0.0,2.63,0.51
+"binary_user-style: alert(=HIGH+ELEV)×1.5, normal V-1",577.5,59.76,10.35,64.5,11.76,0.99
