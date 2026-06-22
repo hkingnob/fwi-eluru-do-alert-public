@@ -418,12 +418,12 @@
       <tr>
         <td><span class="pill green">Normal</span></td>
         <td>Tomorrow's weather is in the bottom 80% historically. OOR rate on these days runs ~6.7% (a bit below baseline).</td>
-        <td>Visit on your normal schedule. Optionally trim 1 visit if capacity is tight; redistribute to alert days.</td>
+        <td>Visit on the standard ARA schedule. No changes.</td>
       </tr>
       <tr>
         <td><span class="pill amber">Elevated risk</span></td>
         <td>Tomorrow's weather is in the top ~20% (but not top ~10%) historically. OOR rate on these days runs ~13%.</td>
-        <td rowspan="2" style="vertical-align: middle;">Add 1–2 extra visits to chronic-risk ponds in your assigned area. Visit earliest in the morning. Log results.<br><span style="font-size:13px; color:var(--muted);">Same response as High — the data doesn't reliably differentiate them.</span></td>
+        <td rowspan="2" style="vertical-align: middle;">Conduct as many visits as possible — use the full 2-hour measurement window and cover extra ponds in your area (even if visited in the past four weeks). Aim for <b>at least 5 ponds per PA</b> (ideally more). If possible, prioritise chronic-risk ponds or ones you expect to be OOR more frequently. Log all results at end of day.<br><span style="font-size:13px; color:var(--muted);">Same response as High — the data doesn't reliably differentiate them.</span></td>
       </tr>
       <tr>
         <td><span class="pill red">High risk</span></td>
@@ -538,6 +538,7 @@
 <section>
   <h2>Source &amp; contact</h2>
   <p>Built using volunteer-contributed code from the Fish Welfare Initiative ARA modelling project. Source pipeline: <a href="https://github.com/SkyeNygaard/Fishwelfare-Experiments" target="_blank">SkyeNygaard/Fishwelfare-Experiments</a>. Weather data: <a href="https://open-meteo.com" target="_blank">Open-Meteo</a>. Questions, issues, or feedback → Haven (haven@fishwelfareinitiative.org).</p>
+  <p>Publicly shareable version of the code, analysis, and reports is at <a href="https://github.com/hkingnob/fwi-eluru-do-alert-public" target="_blank">github.com/hkingnob/fwi-eluru-do-alert-public</a>.</p>
   <p class="footnote" id="modelInfo"></p>
 </section>
 
@@ -608,13 +609,13 @@ function classify(riskScore) {
   // Note: per YTD validation, the High vs Elevated distinction isn't statistically reliable.
   // We render both as "Alert" with the same operational action, but preserve the visual tier
   // (color + label) so users can see how strong the underlying signal is.
-  const ALERT_ACTION = "Add 1–2 extra visits to chronic-risk ponds in your assigned area. Visit earliest in the morning. Log results.";
+  const ALERT_ACTION = "Conduct as many visits as possible — use the full 2-hour measurement window and cover extra ponds in your area (even if visited in the past four weeks). Aim for at least 5 ponds per PA (ideally more). Prioritise chronic-risk ponds where possible. Log all results at end of day.";
   if (riskScore >= t.top_10_pct)
     return { level: "High risk", className: "high", action: ALERT_ACTION };
   if (riskScore >= t.top_20_pct)
     return { level: "Elevated risk", className: "elevated", action: ALERT_ACTION };
   return { level: "Normal", className: "normal",
-           action: "Visit on your normal schedule. Optionally trim 1 visit and redistribute capacity to alert days." };
+           action: "Visit on the standard ARA schedule. No changes." };
 }
 
 function fmt(v, d=1) {
